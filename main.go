@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -23,12 +22,10 @@ type CheckResult struct {
 	Duration   time.Duration
 }
 
-const workerCount = 5
+const workerCount = 10
 const requestTimeout = 5 * time.Second
 
-func worker(_ int, jobs <-chan CheckTask, results chan<- CheckResult, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func worker(id int, jobs <-chan CheckTask, results chan<- CheckResult) {
 	client := &http.Client{}
 
 	for task := range jobs {
@@ -42,7 +39,7 @@ func worker(_ int, jobs <-chan CheckTask, results chan<- CheckResult, wg *sync.W
 				TaskID: task.ID,
 				URL:    task.URL,
 				OK:     false,
-				Err:    fmt.Errorf("create request: %w", err),
+				Err:    err,
 			}
 			continue
 		}
@@ -53,10 +50,11 @@ func worker(_ int, jobs <-chan CheckTask, results chan<- CheckResult, wg *sync.W
 
 		if err != nil {
 			results <- CheckResult{
-				TaskID: task.ID,
-				URL:    task.URL,
-				OK:     false,
-				Err:    err,
+				TaskID:   task.ID,
+				URL:      task.URL,
+				OK:       false,
+				Err:      err,
+				Duration: duration,
 			}
 			continue
 		}
@@ -78,55 +76,47 @@ func worker(_ int, jobs <-chan CheckTask, results chan<- CheckResult, wg *sync.W
 func main() {
 	urls := []string{
 		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
-		"https://example.org/",
+		"https://google.com/",
 	}
 
-	jobs := make(chan CheckTask)
-	results := make(chan CheckResult)
+	jobs := make(chan CheckTask, 100)
+	results := make(chan CheckResult, 100)
 
 	runtime.GOMAXPROCS(1)
 
-	var wg sync.WaitGroup
-
 	for i := 1; i <= workerCount; i++ {
-		wg.Add(1)
-		go worker(i, jobs, results, &wg)
+		go worker(i, jobs, results)
 	}
 
 	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	go func() {
-		for i, u := range urls {
-			jobs <- CheckTask{
-				ID:  i + 1,
-				URL: u,
+		id := 0
+		for {
+			for _, u := range urls {
+				id++
+				jobs <- CheckTask{ID: id, URL: u}
 			}
 		}
-		close(jobs)
 	}()
 
-	for res := range results {
-		if res.Err != nil {
-			fmt.Printf("[TASK %02d] %s -> ERROR: %v \n", res.TaskID, res.URL, res.Err)
-			continue
-		}
+	for {
+		select {
+		case res := <-results:
+			if res.Err != nil {
+				fmt.Printf("[TASK %06d] %s -> ERROR: %v, time=%v\n",
+					res.TaskID, res.URL, res.Err, res.Duration)
+				continue
+			}
 
-		statusInfo := ""
-		if res.OK {
-			statusInfo = "OK (status 200)"
-		} else {
-			statusInfo = fmt.Sprintf("NOT OK (status %d)", res.StatusCode)
-		}
+			status := "NOT OK"
+			if res.OK {
+				status = "OK"
+			}
 
-		fmt.Printf("[TASK %02d] %s -> %s, time=%v \n", res.TaskID, res.URL, statusInfo, res.Duration)
+			fmt.Printf("[TASK %06d] %s -> %s (status %d, time=%v)\n",
+				res.TaskID, res.URL, status, res.StatusCode, res.Duration)
+
+		case <-time.After(5 * time.Second):
+			fmt.Println("No results yet, service running...")
+		}
 	}
 }
