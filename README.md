@@ -2,7 +2,6 @@
 
 Small concurrent URL checker written in Go.  
 
-
 ## Project structure
 
 ```text
@@ -17,21 +16,25 @@ Small concurrent URL checker written in Go.
 
 1. Build the image:
 
-   ```bash
+```bash
    docker compose build
-   ```
+```
 
 2. Run the service:
 
-   ```bash
+```bash
    docker compose up
-   ```
+```
 
-   You will see output similar to:
+You will see output similar to:
 
-   ```text
-   [TASK 01] https://example.org -> OK (status 200), time=120.345ms
-   [TASK 02] https://google.com -> OK (status 200), time=230.789ms
-   [TASK 03] https://httpstat.us/200 -> OK (status 200), time=150.123ms
-   [TASK 04] https://httpstat.us/404 -> NOT OK (status 404), time=140.456ms
-   ```
+```bash
+uptime-sentinel-1  | [TASK 01] https://example.org/ -> OK (status 200), time=389.057125ms 
+uptime-sentinel-1  | [TASK 04] https://example.org/ -> OK (status 200), time=393.012875ms 
+uptime-sentinel-1  | [TASK 05] https://example.org/ -> OK (status 200), time=393.300709ms 
+uptime-sentinel-1  | [TASK 02] https://example.org/ -> OK (status 200), time=404.892083ms 
+uptime-sentinel-1  | [TASK 03] https://example.org/ -> OK (status 200), time=414.865708ms 
+uptime-sentinel-1  | [TASK 06] https://example.org/ -> OK (status 200), time=136.057792ms 
+uptime-sentinel-1  | [TASK 07] https://example.org/ -> OK (status 200), time=132.009167ms 
+uptime-sentinel-1  | [TASK 08] https://example.org/ -> OK (status 200), time=147.424083ms 
+```
